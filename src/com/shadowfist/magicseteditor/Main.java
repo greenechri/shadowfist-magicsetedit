@@ -470,16 +470,22 @@ public class Main
      */
     private static Object toAttributes(String type, String faction)
     {
-        StringBuilder attr = new StringBuilder(type.toLowerCase());
+        StringBuilder attr = new StringBuilder();
+        if (type.equals("Feng Shui Site"))
+        {
+            type = "fss";
+        }
+        attr.append(type.toLowerCase());
+
         if (faction.equals("Lotus"))
         {
             faction = "eaters of the lotus";
         }
-        if (faction.equals("Monarchs"))
+        else if (faction.equals("Monarchs"))
         {
             faction = "four monarchs";
         }
-        if (faction.equals("Hand"))
+        else if (faction.equals("Hand"))
         {
             faction = "guiding hand";
         }
