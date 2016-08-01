@@ -4,6 +4,9 @@
 package com.shadowfist.magicseteditor;
 
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -16,6 +19,8 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
 import java.util.Properties;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 /**
  * This program downloads a CSV file from a URL (typically set to a Google
@@ -78,6 +83,19 @@ public class Main
     public static final String KEY_FILENAME = "filename";
     public static final String KEY_URL = "url";
 
+    protected static final int COL_TITLE = 0;
+    protected static final int COL_SUBTITLE = 1;
+    protected static final int COL_FACTION = 2;
+    protected static final int COL_TYPE = 3;
+    protected static final int COL_COST = 4;
+    protected static final int COL_PROVIDES = 5;
+    protected static final int COL_FIGHTING = 6;
+    protected static final int COL_POWER = 7;
+    protected static final int COL_BODY = 8;
+    protected static final int COL_RULES = 9;
+    protected static final int COL_ARTIST = 10;
+    protected static final int COL_DESIGNER = 11;
+
     /**
      * Will be set to value of "user.dir" in System properties. 
      */
@@ -94,13 +112,17 @@ public class Main
 
 
     /**
-     * Set by input or defaults as the file path to write to.
+     * Set by command-line input or defaults as the file path to write to.
      */
     private static Path outputPath;
     /**
-     * Set by input or defaults as the url to download from.
+     * Set by command-line input or defaults as the url to download from.
      */
-    private static URL downloadUrl;
+    private static URL inputUrl;
+    /**
+     * The copyright statement from the properties file.
+     */
+    private static String copyright;
 
     /**
      * Load the default settings.
@@ -130,19 +152,14 @@ public class Main
         {
             parseArguments(args);
             // download csv and transform into mse-set
-            CharSequence cardContents = downloadAndTransform();
-            
+            String cardContents = transformInput();
+
             // build set file
-            StringBuilder set = new StringBuilder("mse version: 0.3.8\n");
-            set.append("game: shadowfist\n");
-            set.append("stylesheet: fullblank\n");
-            set.append("set info:\n");
-            set.append("   symbol:\n");
-            set.append(cardContents);
-            set.append("version control:\n");
-            set.append("   type: none\n");
-            set.append("apprentice code:\n");
-            System.out.println(set);
+            String setData = buildSetFile(cardContents);
+
+            // create zip file for mse-set
+            writeMseFile(setData);
+            System.out.println("\ndone.");
         }
         catch (Exception e)
         {
@@ -152,24 +169,87 @@ public class Main
     }
 
     /**
+     * Create the mse-set (zip) file at the location {@link #outputPath}.
+     * Overwrites the file if needed. Creates any directories if needed.
+     *
+     * @param set the set contents
+     * @throws IOException if file can't be created or zipping fails.
+     */
+    protected static void writeMseFile(String setData) throws IOException
+    {
+        if (outputPath == null)
+        {
+            throw new IllegalStateException("The output path is not valid or was not determined correctly.");
+        }
+        // check if file exists, delete if needed
+        File outputFile = outputPath.toFile();
+        if (outputFile.exists())
+        {
+            System.out.println("Deleting existing mse-st file.");
+            outputFile.delete();
+        }
+        // create any parent directories if needed
+        if (!outputFile.getParentFile().exists())
+        {
+            System.out.println("Creating directory " + outputFile.getParentFile());
+            outputFile.getParentFile().mkdirs();
+        }
+
+        // create zip 
+        ZipOutputStream out = new ZipOutputStream(new FileOutputStream(outputFile));
+
+        // create set entry
+        out.putNextEntry(new ZipEntry("set"));
+
+        // write entry
+        out.write(setData.getBytes("UTF-8"), 0, setData.getBytes().length);
+        out.closeEntry();
+        out.close();
+    }
+
+    /**
+     * Wrap the card contents in set meta-data.
+     *
+     * @param cardContents the list of cards in the set
+     * @return the completed set file including meta-data
+     */
+    protected static String buildSetFile(String cardContents)
+    {
+        StringBuilder set = new StringBuilder(cardContents.length());
+        set.append("mse version: 0.3.8\n");
+        set.append("game: shadowfist\n");
+        set.append("stylesheet: fullblank\n");
+        set.append("set info:\n");
+        set.append("\tsymbol:\n");
+        set.append(cardContents);
+        set.append("version control:\n");
+        set.append("\ttype: none\n");
+        set.append("apprentice code:\n");
+        return set.toString();
+    }
+
+    /**
      * Using the input values, download the HTTP contents as a string,
      * parsing the content, transforming it, and return the formatted body of
-     * the set file.
+     * the set file. Each line is transformed by {@link #transformCard(String)}.
      * 
      * @throws IOException if something bad happens
      */
-    protected static CharSequence downloadAndTransform() throws IOException
+    protected static String transformInput() throws IOException
     {
         InputStream is = null;
         StringBuilder formattedContents = new StringBuilder();
         try
         {
             String line = null;
-            is = downloadUrl.openStream();
+            System.out.println("Opening connection to url: " + inputUrl);
+            is = inputUrl.openStream();
             BufferedReader reader = new BufferedReader(new InputStreamReader(is));
 
+            reader.readLine();// skip header line
             while ((line = reader.readLine()) != null)
             {
+                System.out.print(".");
                 formattedContents.append(transformCard(line));
             }
         }
@@ -180,7 +260,7 @@ public class Main
                 is.close();
             }
         }
-        return formattedContents;
+        return formattedContents.toString();
     }
 
     /**
@@ -204,36 +284,59 @@ public class Main
      * @param cardDetails
      * @return
      */
-    private static CharSequence transformCard(String cardDetails)
+    protected static CharSequence transformCard(String cardDetails)
     {
         List<String> values = CSVUtils.parseLine(cardDetails);
         String now = DATE_FORMAT.format(new Date());
         StringBuilder transformedCard = new StringBuilder("card:\n");
-        transformedCard.append("   has styling: false\n");
-        transformedCard.append("   notes:\n");
-        transformedCard.append("   time created: ").append(now).append("\n");
-        transformedCard.append("   time modified: ").append(now).append("\n");
-        transformedCard.append("   title: ").append(values.get(0)).append("\n");
-        transformedCard.append("   scene:\n");
-        transformedCard.append("   fighting: ").append(values.get(6)).append("\n");
-        transformedCard.append("   image:\n");
-        transformedCard.append("   subtitle: ").append(values.get(1)).append("\n");
-        transformedCard.append("   rules: ").append(values.get(9)).append("\n");
-        transformedCard.append("   tag:\n");
-        transformedCard.append("   copyright: ").append(values.get(10)).append("\n");
-        transformedCard.append("   artist: ").append(values.get(11)).append("\n");
+        transformedCard.append("\thas styling: false\n");
+        transformedCard.append("\tnotes:\n");
+        transformedCard.append("\ttime created: ").append(now).append("\n");
+        transformedCard.append("\ttime modified: ").append(now).append("\n");
+        transformedCard.append("\tattributes: ").append(toAttributes(values.get(COL_TYPE), values.get(COL_FACTION))).append("\n");
+        transformedCard.append("\ttitle: ").append(values.get(COL_TITLE)).append("\n");
+        transformedCard.append("\tscene:\n");
+        if (values.get(COL_FIGHTING).length() > 0)
+        {
+            transformedCard.append("\tfighting: ").append(values.get(COL_FIGHTING)).append("\n");
+        }
+        if (values.get(COL_POWER).length() > 0)
+        {
+            transformedCard.append("\tpower: ").append(values.get(COL_POWER)).append("\n");
+        }
+        if (values.get(COL_BODY).length() > 0)
+        {
+            transformedCard.append("\tbody: ").append(values.get(COL_BODY)).append("\n");
+        }
+        transformedCard.append("\timage:\n");
+        transformedCard.append("\tsubtitle: ").append(values.get(COL_SUBTITLE)).append("\n");
+        transformedCard.append("\trules: ").append(values.get(COL_RULES)).append("\n");
+        transformedCard.append("\ttag:\n");
+        if (values.get(COL_COST).length() > 0)
+        {
+            transformedCard.append("\tcost: ").append(toResources(values.get(COL_COST))).append("\n");
+        }
+        transformedCard.append("\tcopyright: ").append(copyright).append("\n");
+        if (values.get(COL_ARTIST).length() > 0)
+        {
+            transformedCard.append("\tartist: ").append(values.get(COL_ARTIST)).append("\n");
+        }
+        if (values.get(COL_PROVIDES).length() > 0)
+        {
+            transformedCard.append("\tresources: ").append(toResources(values.get(COL_PROVIDES))).append("\n");
+        }
         return transformedCard;
     }
 
     /**
-     * Sets the value of {@link #downloadUrl} and {@link #outputPath}.
+     * Sets the value of {@link #inputUrl} and {@link #outputPath}.
      * 
      * @param args arguments passed into the application
      * @throws MalformedURLException if a URL was specified but it was invalid.
      */
     protected static void parseArguments(String[] args) throws MalformedURLException
     {
-        downloadUrl = defaultURL;
+        inputUrl = defaultURL;
         outputPath = defaultOutputDirectory.resolve(defaultFileName);
 
         if (args != null)
@@ -245,7 +348,7 @@ public class Main
                 if (arg.startsWith("-u"))
                 {
                     String url = stripFlag(arg);
-                    downloadUrl = new URL(url);
+                    inputUrl = new URL(url);
                 }
                 else if (arg.startsWith("-d"))
                 {
@@ -258,7 +361,7 @@ public class Main
                 }
                 else
                 {
-                    throw new IllegalArgumentException("An invalid argument was specified on the command line.");
+                    throw new IllegalArgumentException("An invalid argument \"" + arg + "\" was specified on the command line.");
                 }
             }
             if (specifiedFile != null)
@@ -299,16 +402,28 @@ public class Main
 
         // load properties
         Properties properties = new Properties();
-        InputStream stream = Main.class.getResourceAsStream("/" + DEFAULT_PROPERTIES);
+        // try load from working dir
         try
         {
-            properties.load(stream);
-            System.out.println("Loaded " + properties);
+            properties.load(new FileReader(DEFAULT_PROPERTIES));
         }
         catch (Exception e)
         {
-            throw new IOException("Could not load default.properties from the jar or classpath.", e);
+            System.out.println("Could not load default.properties working directory. Trying classpath...");
+
+            // try from root classpath
+            InputStream stream = Main.class.getResourceAsStream("/" + DEFAULT_PROPERTIES);
+            try
+            {
+                properties.load(stream);
+                System.out.println("Loaded " + properties);
+            }
+            catch (Exception e1)
+            {
+                throw new IOException("Could not load default.properties from the jar or classpath.", e1);
+            }
         }
+
         // determine default filename
         defaultFileName = properties.getProperty(KEY_FILENAME);
         if (defaultFileName == null)
@@ -320,9 +435,12 @@ public class Main
         String defUrlString = properties.getProperty(KEY_URL);
         if (defUrlString != null)
         {
-            System.out.println("Setting defaultURL " + defaultURL);
             defaultURL = new URL(defUrlString);
+            System.out.println("Setting defaultURL " + defaultURL);
         }
+
+        // determine the copyright
+        copyright = properties.getProperty("copyright");
     }
 
     /**
@@ -341,6 +459,52 @@ public class Main
         buff.append("    -f:  The file name of the out file. Defaults to \"" + DEFAULT_FILENAME + "\".\n");
         buff.append("\n");
         return buff.toString();
+    }
+
+    /**
+     * Return a comma-separated list of attributes based upon the specified input.
+     *
+     * @param type
+     * @param faction
+     * @return
+     */
+    private static Object toAttributes(String type, String faction)
+    {
+        StringBuilder attr = new StringBuilder(type.toLowerCase());
+        if (faction.equals("Lotus"))
+        {
+            faction = "eaters of the lotus";
+        }
+        if (faction.equals("Monarchs"))
+        {
+            faction = "four monarchs";
+        }
+        if (faction.equals("Hand"))
+        {
+            faction = "guiding hand";
+        }
+        attr.append(", ").append(faction.toLowerCase());
+        return attr.toString();
+    }
+
+    /**
+     * Upper-cases and converts "a" for Ascended to "W" since a is for Architects
+     * in MSE.
+     *
+     * @param resources the inpur resources.
+     * @return
+     */
+    private static Object toResources(String resources)
+    {
+        StringBuilder builder = new StringBuilder(resources.toUpperCase());
+        for (int i = 0; i < resources.length(); i++)
+        {
+            if (builder.charAt(i) == 'A')
+            {
+                builder.replace(i, i+1, "W");
+            }
+        }
+        return builder.toString();
     }
 
     /**

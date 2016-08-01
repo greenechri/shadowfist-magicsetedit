@@ -40,7 +40,6 @@ public class CSVUtils
 
         StringBuffer curVal = new StringBuffer();
         boolean inQuotes = false;
-        boolean startCollectChar = false;
         boolean doubleQuotesInColumn = false;
 
         char[] chars = cvsLine.toCharArray();
@@ -50,7 +49,6 @@ public class CSVUtils
 
             if (inQuotes)
             {
-                startCollectChar = true;
                 if (ch == customQuote)
                 {
                     inQuotes = false;
@@ -79,30 +77,15 @@ public class CSVUtils
             {
                 if (ch == customQuote)
                 {
-
                     inQuotes = true;
-
-                    // Fixed : allow "" in empty quote enclosed
-                    if (chars[0] != '"' && customQuote == '\"')
-                    {
-                        curVal.append('"');
-                    }
-
-                    // double quotes in column will hit this!
-                    if (startCollectChar)
-                    {
-                        curVal.append('"');
-                    }
-
                 }
                 else if (ch == separators)
                 {
-
+                    // add result
                     result.add(curVal.toString());
 
+                    // reset value
                     curVal = new StringBuffer();
-                    startCollectChar = false;
-
                 }
                 else if (ch == '\r')
                 {
