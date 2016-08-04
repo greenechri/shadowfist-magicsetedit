@@ -159,7 +159,7 @@ public class Main
 
             // create zip file for mse-set
             writeMseFile(setData);
-            System.out.println("\ndone.");
+            System.out.println("done.");
         }
         catch (Exception e)
         {
@@ -185,13 +185,13 @@ public class Main
         File outputFile = outputPath.toFile();
         if (outputFile.exists())
         {
-            System.out.println("Deleting existing mse-st file.");
+            System.out.println("Deleting existing mse-st file...");
             outputFile.delete();
         }
         // create any parent directories if needed
         if (!outputFile.getParentFile().exists())
         {
-            System.out.println("Creating directory " + outputFile.getParentFile());
+            System.out.println("Creating directory " + outputFile.getParentFile() + "...");
             outputFile.getParentFile().mkdirs();
         }
 
@@ -252,6 +252,7 @@ public class Main
                 System.out.print(".");
                 formattedContents.append(transformCard(line));
             }
+            System.out.println("");
         }
         finally
         {
