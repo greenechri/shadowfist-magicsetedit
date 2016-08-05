@@ -7,7 +7,7 @@
     <property name="dir.workspace" value="${dir.buildfile}/.."/>
     <property name="dir.jarfile" value="${dir.buildfile}"/>
     <target name="create_run_jar">
-        <jar destfile="${dir.jarfile}/bin/shadowfist-magicsetedit.jar" filesetmanifest="mergewithoutmain">
+        <jar destfile="${dir.jarfile}/shadowfist-magicsetedit.jar" filesetmanifest="mergewithoutmain">
             <manifest>
                 <attribute name="Main-Class" value="com.shadowfist.magicseteditor.Main"/>
                 <attribute name="Class-Path" value="."/>
