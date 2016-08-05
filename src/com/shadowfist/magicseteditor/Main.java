@@ -4,12 +4,14 @@
 package com.shadowfist.magicseteditor;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.file.Path;
@@ -96,6 +98,11 @@ public class Main
     protected static final int COL_ARTIST = 10;
     protected static final int COL_DESIGNER = 11;
 
+
+    /**
+     * Will be set to value of "mse" in {@link #DEFAULT_PROPERTIES}.
+     */
+    private static Path defaultMsePath;
     /**
      * Will be set to value of "user.dir" in System properties. 
      */
@@ -152,13 +159,69 @@ public class Main
         {
             parseArguments(args);
             // download csv and transform into mse-set
-            String cardContents = transformInput();
+//            String cardContents = transformInput();
 
             // build set file
-            String setData = buildSetFile(cardContents);
+//            String setData = buildSetFile(cardContents);
 
             // create zip file for mse-set
-            writeMseFile(setData);
+//            writeMseFile(setData);
+
+            // load mse cli interface
+            System.out.println("Starting cli...");
+            ProcessBuilder builder = new ProcessBuilder(defaultMsePath.toString(), "--cli", "--quiet", outputPath.toString());
+            builder.redirectErrorStream(true);
+            Process mse = builder.start();
+
+            BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(mse.getOutputStream()));
+            // start reading process output thread
+            BufferedReader reader = new BufferedReader(new InputStreamReader(mse.getInputStream()));
+//        	Thread printMseOutputThread = new Thread(() -> {
+//                String line;
+//                try
+//                {
+//					while ((line = reader.readLine()) != null)
+//					{
+//					    System.out.println("*" + line);
+//					}
+//				} 
+//                catch (Exception e)
+//                {
+//					e.printStackTrace();
+//				}
+//        	}, "printMseOutputThread");
+//        	printMseOutputThread.setDaemon(true);
+//        	printMseOutputThread.start();
+
+            // get information
+            System.out.println("Getting set length...");
+            writer.write("length(set.cards)");
+            writer.newLine();
+            writer.flush();
+            String length = reader.readLine();
+            System.out.println(length);
+
+            // name of a card
+            int index = 12;
+            System.out.println("Getting card name...");
+            writer.write("set.cards[" + index + "].title");
+            writer.newLine();
+            writer.flush();
+            String name = reader.readLine();
+            System.out.println(name);
+
+            // render a card
+            System.out.println("Writing image file...");
+            writer.write("write_image_file(file:\"" + index + "-" + name + ".jpg\", set.cards[" + index + "])\n");
+            writer.newLine();
+            writer.flush();
+            System.out.println(reader.readLine());
+
+            // export all images
+
+            // TODO collate into pdf file
+
+            mse.destroy();
             System.out.println("done.");
         }
         catch (Exception e)
@@ -424,6 +487,9 @@ public class Main
                 throw new IOException("Could not load default.properties from the jar or classpath.", e1);
             }
         }
+
+        // determine mse location
+        defaultMsePath = Paths.get(properties.getProperty("mse"));
 
         // determine default filename
         defaultFileName = properties.getProperty(KEY_FILENAME);
