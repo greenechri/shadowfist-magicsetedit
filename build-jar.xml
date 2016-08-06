@@ -13,6 +13,7 @@
                 <attribute name="Class-Path" value="."/>
             </manifest>
             <fileset dir="${dir.jarfile}/bin"/>
+            <zipfileset excludes="META-INF/*.SF" src="${dir.jarfile}/lib/pdfbox-app-2.0.2.jar"/>
         </jar>
     </target>
 </project>
