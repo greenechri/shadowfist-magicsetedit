@@ -22,6 +22,8 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
 import java.util.Properties;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -77,8 +79,6 @@ import org.apache.pdfbox.util.Matrix;
  *    tag:
  *    copyright: playtest round 1
  *    artist: footer2
- * version control:
- *    type: none
  * apprentice code:
  * </pre>
  *
@@ -106,7 +106,20 @@ public class Main
     protected static final int COL_ARTIST = 10;
     protected static final int COL_DESIGNER = 11;
 
+    /**
+     * Assuming the spreadsheet data has designators entered like
+     * <Netherworld>, <Fire>, <Student> then this pattern should find it in a
+     * string. Then they can be formatted with <i>.
+     */
+    private static final Pattern patternDesignator = Pattern.compile("<(\\w+)>");
+    /**
+     * Find keywords like Superleap, Guts, Unique, etc so that they can be
+     * formatted with <b>.
+     */
+    private static final Pattern bfaDesignator = Pattern.compile("<(\\w+)>");
+
     private static boolean debug;
+
 
     /**
      * Will be set to value of "mse" in {@link #DEFAULT_PROPERTIES}.
@@ -235,9 +248,9 @@ public class Main
         set.append("set info:\n");
         set.append("\tsymbol:\n");
         set.append(cardContents);
-        set.append("version control:\n");
-        set.append("\ttype: none\n");
-        set.append("apprentice code:\n");
+        //set.append("version control:\n");
+        //set.append("\ttype: none\n");
+        //set.append("apprentice code:\n");
         return set.toString();
     }
 
@@ -560,6 +573,11 @@ public class Main
      */
     protected static CharSequence transformCard(String cardDetails)
     {
+		if (debug)
+			System.out.println("Transforming downloaded card details: " + cardDetails);
+		else
+            System.out.print(".");
+
         List<String> values = CSVUtils.parseLine(cardDetails);
         String now = DATE_FORMAT.format(new Date());
         StringBuilder transformedCard = new StringBuilder("card:\n");
@@ -584,7 +602,7 @@ public class Main
         }
         transformedCard.append("\timage:\n");
         transformedCard.append("\tsubtitle: ").append(values.get(COL_SUBTITLE)).append("\n");
-        transformedCard.append("\trules: ").append(values.get(COL_RULES)).append("\n");
+        transformedCard.append("\trules: ").append(toFormattedText(values.get(COL_RULES))).append("\n");
         transformedCard.append("\ttag:\n");
         if (values.get(COL_COST).length() > 0)
         {
@@ -602,7 +620,7 @@ public class Main
         return transformedCard;
     }
 
-    /**
+	/**
      * Using the input values, download the HTTP contents as a string,
      * parsing the content, transforming it, and return the formatted body of
      * the set file. Each line is transformed by {@link #transformCard(String)}.
@@ -623,7 +641,6 @@ public class Main
             reader.readLine();// skip header line
             while ((line = reader.readLine()) != null)
             {
-                System.out.print(".");
                 formattedContents.append(transformCard(line));
             }
             System.out.println("");
@@ -733,6 +750,26 @@ public class Main
         attr.append(", ").append(faction.toLowerCase());
         return attr.toString();
     }
+
+    /**
+     * Returns the specified text formatted with MSE markup.
+     *
+     * @param text the raw text from the spreadsheet
+     * @return text formatted for MSE file.
+     */
+    private static Object toFormattedText(String text)
+    {
+    	StringBuilder builder = new StringBuilder(text);
+        Matcher matcher = patternDesignator.matcher(text);
+        if (matcher.find())
+        {
+            for (int i = 0; i < matcher.groupCount(); i++)
+            {
+            	builder.replace(matcher.start(), matcher.end(), "<i>" + matcher.group(1) + "</i>");
+            }
+        }
+        return builder.toString();
+	}
 
     /**
      * Upper-cases and converts "a" for Ascended to "W" since a is for Architects
