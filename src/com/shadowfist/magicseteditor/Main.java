@@ -111,12 +111,15 @@ public class Main
      * <Netherworld>, <Fire>, <Student> then this pattern should find it in a
      * string. Then they can be formatted with <i>.
      */
-    private static final Pattern patternDesignator = Pattern.compile("<(\\w+)>");
+    protected static final Pattern PATTERN_DESIG = Pattern.compile("<(\\w+)>");
     /**
      * Find keywords like Superleap, Guts, Unique, etc so that they can be
      * formatted with <b>.
      */
-    private static final Pattern bfaDesignator = Pattern.compile("<(\\w+)>");
+    protected static final Pattern PATTERN_BFA = Pattern.compile("(Ambush|Assassinate|Corrupted|Crisis|Guts|"
+    		+ "Independent|Immunity|Influence|Lethal|Loyalty|Mobility|Regenerate|Reload|Stealth|Superleap|"
+    		+ "Tactics|Toughness|Unstoppable|Identity|Limited|No Max|Not Cumulative|One-Shot|Schtick|"
+    		+ "Toast It|Uncopyable|Unique|Vehicle|Weapon)");
 
     private static boolean debug;
 
@@ -422,9 +425,14 @@ public class Main
      */
 	protected static Path exportCardImages() throws IOException
 	{
-		if (mseExePath == null || !mseExePath.toFile().exists())
+		if (mseExePath == null)
 		{
 			System.out.println("Path to mse.exe is not set. Skipping card export...");
+			return null;
+		}
+		if (!mseExePath.toFile().exists())
+		{
+			System.out.println("Path to mse.exe, " + mseExePath + ", does not exist. Skipping card export...");
 			return null;
 		}
 		System.out.println("Starting mse cli...");
@@ -691,7 +699,9 @@ public class Main
         out.putNextEntry(new ZipEntry("set"));
 
         // write entry
-        out.write(setData.getBytes("UTF-8"), 0, setData.getBytes().length);
+        byte[] data = setData.getBytes("UTF-8");
+        out.write(data, 0, data.length);
+        out.flush();
         out.closeEntry();
         out.close();
     }
@@ -726,7 +736,7 @@ public class Main
      * @param faction
      * @return
      */
-    private static Object toAttributes(String type, String faction)
+    static Object toAttributes(String type, String faction)
     {
         StringBuilder attr = new StringBuilder();
         if (type.equals("Feng Shui Site"))
@@ -757,18 +767,16 @@ public class Main
      * @param text the raw text from the spreadsheet
      * @return text formatted for MSE file.
      */
-    private static Object toFormattedText(String text)
+    static Object toFormattedText(String text)
     {
-    	StringBuilder builder = new StringBuilder(text);
-        Matcher matcher = patternDesignator.matcher(text);
-        if (matcher.find())
-        {
-            for (int i = 0; i < matcher.groupCount(); i++)
-            {
-            	builder.replace(matcher.start(), matcher.end(), "<i>" + matcher.group(1) + "</i>");
-            }
-        }
-        return builder.toString();
+    	// format designators as italics
+        Matcher matcher = PATTERN_DESIG.matcher(text);
+        text = matcher.replaceAll("<i>$1</i>");
+
+        // format bfa text as bold
+        matcher = PATTERN_BFA.matcher(text);
+        text = matcher.replaceAll("<b>$1</b>");
+      	return text;
 	}
 
     /**
@@ -778,7 +786,7 @@ public class Main
      * @param resources the inpur resources.
      * @return
      */
-    private static Object toResources(String resources)
+    static Object toResources(String resources)
     {
         StringBuilder builder = new StringBuilder(resources.toUpperCase());
         for (int i = 0; i < resources.length(); i++)
